@@ -1,128 +1,160 @@
 <template>
   <div class="telegram-config">
-    <div class="config-header">
-      <h3>⚙️ Configuração do Telegram</h3>
-      <p>Configure as notificações para receber alertas de novas reservas</p>
-    </div>
-
+    <h3>🤖 Configuração do Telegram</h3>
+    
     <div v-if="error" class="error-message">
       {{ error }}
     </div>
 
-    <div v-if="success" class="success-message">
-      {{ success }}
+    <div v-if="loading" class="loading">
+      Carregando configurações do Telegram...
     </div>
 
-    <form @submit.prevent="saveConfig" class="config-form">
-      <div class="form-group">
-        <label>🤖 Bot Token</label>
-        <input 
-          v-model="config.botToken"
-          type="text" 
-          placeholder="Ex: 1234567890:ABCdefGHIjklMNOpqrsTUVwxyz"
-          required
-          class="token-input"
-        >
-        <small class="help-text">
-          Obtenha com o @BotFather no Telegram
-        </small>
-      </div>
+    <div v-else class="telegram-form">
+      <!-- Configurações do Bot -->
+      <div class="config-section">
+        <h4>🔧 Configurações do Bot</h4>
+        
+        <div class="form-group">
+          <label>Nome do Bot</label>
+          <input 
+            v-model="telegramConfig.botName" 
+            type="text" 
+            placeholder="Será preenchido automaticamente"
+            class="form-input"
+            disabled
+          >
+          <small class="help-text">
+            Nome será atualizado automaticamente ao testar a conexão
+          </small>
+        </div>
 
-      <div class="form-group">
-        <label>👤 Chat ID</label>
-        <input 
-          v-model="config.chatId"
-          type="text" 
-          placeholder="Ex: 123456789"
-          required
-          class="chat-input"
-        >
-        <small class="help-text">
-          Obtenha enviando mensagem para @userinfobot
-        </small>
-      </div>
+        <div class="form-group">
+          <label>Token do Bot *</label>
+          <input 
+            v-model="telegramConfig.botToken" 
+            type="password" 
+            placeholder="Digite o token do bot"
+            class="form-input"
+            required
+          >
+          <small class="help-text">
+            Obtenha o token com o @BotFather no Telegram
+          </small>
+        </div>
 
-      <div class="form-group">
-        <label>📝 Nome do Bot (Opcional)</label>
-        <input 
-          v-model="config.botName"
-          type="text" 
-          placeholder="Ex: Meu Bot de Vendas"
-          class="name-input"
-        >
-      </div>
+        <div class="form-group">
+          <label>Chat ID do Administrador *</label>
+          <input 
+            v-model="telegramConfig.adminChatId" 
+            type="text" 
+            placeholder="Digite o Chat ID do admin"
+            class="form-input"
+            required
+          >
+          <small class="help-text">
+            ID do chat onde serão enviadas as notificações. Envie uma mensagem para @userinfobot no Telegram para obter seu Chat ID.
+          </small>
+        </div>
 
-      <div class="form-actions">
-        <button 
-          type="submit" 
-          :disabled="loading" 
-          class="btn btn-primary"
-        >
-          {{ loading ? 'Salvando...' : '💾 Salvar Configuração' }}
-        </button>
-
-        <button 
-          v-if="isConfigured"
-          type="button" 
-          @click="sendTest"
-          :disabled="testing"
-          class="btn btn-secondary"
-        >
-          {{ testing ? 'Enviando...' : '📤 Enviar Mensagem de Teste' }}
-        </button>
-
-        <button 
-          v-if="isConfigured"
-          type="button" 
-          @click="resetConfig"
-          class="btn btn-danger"
-        >
-          🗑️ Limpar Configuração
-        </button>
-      </div>
-    </form>
-
-    <div v-if="isConfigured" class="config-status">
-      <div class="status-card success">
-        <h4>✅ Telegram Configurado</h4>
-        <p>As notificações estão ativas e funcionando!</p>
-        <div class="config-info">
-          <p><strong>Bot:</strong> {{ currentConfig.botName || 'Não nomeado' }}</p>
-          <p><strong>Chat ID:</strong> {{ currentConfig.chatId }}</p>
-          <p><strong>Última verificação:</strong> {{ lastTest || 'Nunca' }}</p>
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input 
+              v-model="telegramConfig.enabled" 
+              type="checkbox" 
+              class="checkbox-input"
+            >
+            <span class="checkbox-text">Ativar notificações automáticas</span>
+          </label>
         </div>
       </div>
-    </div>
 
-    <div class="setup-guide">
-      <h4>📋 Como Configurar</h4>
-      <div class="guide-steps">
-        <div class="step">
-          <span class="step-number">1</span>
-          <div class="step-content">
-            <h5>Criar Bot no Telegram</h5>
-            <p>Abra o Telegram, procure por <strong>@BotFather</strong> e envie <code>/newbot</code></p>
-            <p>Siga as instruções e ao final copie o <strong>Bot Token</strong></p>
+      <!-- Status do Bot -->
+      <div class="config-section">
+        <h4>📊 Status do Bot</h4>
+        
+        <div class="status-info">
+          <p><strong>Status:</strong> 
+            <span :class="botStatusClass">
+              {{ botStatus }}
+            </span>
+          </p>
+          <p v-if="telegramConfig.botName">
+            <strong>Bot:</strong> @{{ telegramConfig.botName }}
+          </p>
+          <p v-if="lastTest">
+            <strong>Último teste:</strong> {{ formatDate(lastTest) }}
+          </p>
+          <p>
+            <strong>Notificações:</strong> 
+            <span :class="telegramConfig.enabled ? 'status-on' : 'status-off'">
+              {{ telegramConfig.enabled ? 'Ativadas' : 'Desativadas' }}
+            </span>
+          </p>
+        </div>
+
+        <div class="test-buttons">
+          <button 
+            @click="testBotConnection" 
+            :disabled="testingBot || !telegramConfig.botToken"
+            class="test-btn"
+          >
+            {{ testingBot ? 'Testando...' : '🧪 Testar Conexão' }}
+          </button>
+          
+          <button 
+            @click="sendTestMessage" 
+            :disabled="testingMessage || !canSendTestMessage"
+            class="test-btn"
+          >
+            {{ testingMessage ? 'Enviando...' : '📤 Enviar Mensagem de Teste' }}
+          </button>
+        </div>
+      </div>
+
+      <!-- Histórico de Mensagens -->
+      <div class="config-section">
+        <h4>📨 Histórico de Mensagens</h4>
+        
+        <div v-if="messages.length === 0" class="no-messages">
+          <p>Nenhuma mensagem enviada ainda.</p>
+        </div>
+        
+        <div v-else class="messages-list">
+          <div 
+            v-for="message in displayedMessages" 
+            :key="message.id"
+            class="message-item"
+          >
+            <div class="message-header">
+              <span class="message-type">{{ message.type }}</span>
+              <span class="message-date">{{ formatDate(message.timestamp) }}</span>
+            </div>
+            <p class="message-content">{{ message.content }}</p>
+            <p class="message-status" :class="message.status">
+              {{ message.status === 'success' ? '✅' : '❌' }} {{ message.status }}
+            </p>
           </div>
         </div>
+      </div>
 
-        <div class="step">
-          <span class="step-number">2</span>
-          <div class="step-content">
-            <h5>Obter Chat ID</h5>
-            <p>Procure por <strong>@userinfobot</strong> no Telegram</p>
-            <p>Envie qualquer mensagem e ele responderá com seu <strong>Chat ID</strong></p>
-          </div>
-        </div>
-
-        <div class="step">
-          <span class="step-number">3</span>
-          <div class="step-content">
-            <h5>Configurar no App</h5>
-            <p>Cole o <strong>Bot Token</strong> e <strong>Chat ID</strong> nos campos acima</p>
-            <p>Clique em "Salvar Configuração" e depois "Enviar Mensagem de Teste"</p>
-          </div>
-        </div>
+      <!-- Ações -->
+      <div class="action-buttons">
+        <button 
+          @click="saveConfig" 
+          :disabled="saving || !hasChanges"
+          class="save-btn"
+        >
+          {{ saving ? 'Salvando...' : '💾 Salvar Configurações' }}
+          <span v-if="hasChanges" class="unsaved-indicator">*</span>
+        </button>
+        
+        <button 
+          @click="resetConfig" 
+          class="reset-btn"
+        >
+          🔄 Restaurar Padrões
+        </button>
       </div>
     </div>
   </div>
@@ -135,150 +167,244 @@ export default {
   name: 'TelegramConfig',
   data() {
     return {
-      config: {
-        botToken: '',
-        chatId: '',
-        botName: ''
-      },
-      currentConfig: null,
-      loading: false,
-      testing: false,
+      loading: true,
+      saving: false,
+      testingBot: false,
+      testingMessage: false,
       error: '',
-      success: '',
-      lastTest: ''
+      lastTest: null,
+      messages: [],
+      originalConfig: null,
+      
+      // Configuração com valores padrão para evitar null
+      telegramConfig: {
+        botName: '',
+        botToken: '',
+        adminChatId: '',
+        enabled: false
+      }
     }
   },
   computed: {
-    isConfigured() {
-      return telegramService.isConfigured()
+    botStatus() {
+      if (!this.telegramConfig.botToken || this.telegramConfig.botToken.trim() === '') {
+        return 'Não configurado'
+      }
+      if (!this.telegramConfig.adminChatId || this.telegramConfig.adminChatId.trim() === '') {
+        return 'Configurado (sem Chat ID)'
+      }
+      return 'Configurado e pronto'
+    },
+    botStatusClass() {
+      if (!this.telegramConfig.botToken || this.telegramConfig.botToken.trim() === '') {
+        return 'status-off'
+      }
+      if (!this.telegramConfig.adminChatId || this.telegramConfig.adminChatId.trim() === '') {
+        return 'status-warning'
+      }
+      return 'status-on'
+    },
+    canSendTestMessage() {
+      return this.telegramConfig.botToken && 
+             this.telegramConfig.botToken.trim() !== '' && 
+             this.telegramConfig.adminChatId && 
+             this.telegramConfig.adminChatId.trim() !== ''
+    },
+    displayedMessages() {
+      return this.messages.slice().reverse().slice(0, 10)
+    },
+    hasChanges() {
+      if (!this.originalConfig) return false
+      return JSON.stringify(this.telegramConfig) !== JSON.stringify(this.originalConfig)
     }
   },
-  mounted() {
-    this.loadCurrentConfig()
+  async mounted() {
+    await this.loadConfig()
   },
   methods: {
-    async verifyBotToken() {
-    if (!this.config.botToken) {
-      this.error = 'Digite o Bot Token primeiro'
-      return
-    }
-
-    this.loading = true
-    this.error = ''
-
-    try {
-      const botInfo = await telegramService.getBotInfo(this.config.botToken)
-      this.success = `✅ Bot válido: ${botInfo.result.first_name} (@${botInfo.result.username})`
-      this.config.botName = botInfo.result.first_name
-    } catch (error) {
-      this.error = `❌ ${error.message}`
-    } finally {
-      this.loading = false
-    }
-  },
-
-  // No método saveConfig, adicione esta validação:
-  async saveConfig() {
-    this.loading = true
-    this.error = ''
-    this.success = ''
-
-    // Limpa espaços em branco
-    this.config.botToken = this.config.botToken.trim()
-    this.config.chatId = this.config.chatId.trim()
-
-    try {
-      // Validações manuais antes de enviar para o Telegram
-      if (!this.config.botToken.startsWith('') || this.config.botToken.split(':').length !== 2) {
-        throw new Error('Formato do Bot Token inválido. Deve ser no formato: 1234567890:ABCdefGHIjklMNOpqrsTUVwxyz')
-      }
-
-      if (isNaN(this.config.chatId) || this.config.chatId === '') {
-        throw new Error('Chat ID deve conter apenas números')
-      }
-
-      // Valida as configurações com o Telegram
-      await telegramService.validateConfig(this.config.botToken, this.config.chatId)
-      
-      // Salva as configurações completas
-      const saveResult = telegramService.saveConfig(this.config)
-      
-      if (saveResult) {
-        this.success = '✅ Configurações salvas com sucesso! O Telegram está configurado.'
-        this.loadCurrentConfig()
-        this.lastTest = new Date().toLocaleString('pt-BR')
-      } else {
-        throw new Error('Erro ao salvar configurações')
-      }
-
-    } catch (error) {
-      console.error('Erro ao salvar configurações:', error)
-      this.error = `❌ ${error.message}`
-    } finally {
-      this.loading = false
-    }
-  },
-  
-    loadCurrentConfig() {
-      this.currentConfig = telegramService.loadConfig()
-      if (this.currentConfig) {
-        this.config = { ...this.currentConfig }
-      }
-    },
-
-    async saveConfig() {
+    async loadConfig() {
       this.loading = true
       this.error = ''
-      this.success = ''
-
       try {
-        // Valida as configurações
-        await telegramService.validateConfig(this.config.botToken, this.config.chatId)
+        const config = await telegramService.getConfig()
         
-        // Salva as configurações completas
-        const saveResult = telegramService.saveConfig(this.config)
-        
-        if (saveResult) {
-          this.success = '✅ Configurações salvas com sucesso! O Telegram está configurado.'
-          this.loadCurrentConfig()
-          this.lastTest = new Date().toLocaleString('pt-BR')
-        } else {
-          throw new Error('Erro ao salvar configurações')
+        // Garantir que não seja null
+        this.telegramConfig = {
+          botName: '',
+          botToken: '',
+          adminChatId: '',
+          enabled: false,
+          ...config
         }
-
+        
+        // Salvar configuração original para detectar mudanças
+        this.originalConfig = { ...this.telegramConfig }
+        
+        // Carregar histórico do Firebase
+        await this.loadMessageHistory()
+        
       } catch (error) {
-        console.error('Erro ao salvar configurações:', error)
-        this.error = `Erro: ${error.message}`
+        console.error('Erro ao carregar configurações:', error)
+        this.error = 'Erro ao carregar configurações do Telegram: ' + error.message
       } finally {
         this.loading = false
       }
     },
 
-    async sendTest() {
-      this.testing = true
+    async saveConfig() {
+      this.saving = true
       this.error = ''
-      this.success = ''
-
       try {
-        await telegramService.sendTestMessage()
-        this.success = '✅ Mensagem de teste enviada com sucesso! Verifique seu Telegram.'
-        this.lastTest = new Date().toLocaleString('pt-BR')
+        await telegramService.saveConfig(this.telegramConfig)
+        this.originalConfig = { ...this.telegramConfig }
+        this.addMessage('Configuração', 'Configurações salvas com sucesso no Firebase', 'success')
       } catch (error) {
-        console.error('Erro ao enviar teste:', error)
-        this.error = `Erro ao enviar teste: ${error.message}`
+        console.error('Erro ao salvar configurações:', error)
+        this.error = 'Erro ao salvar configurações: ' + error.message
+        this.addMessage('Configuração', 'Erro ao salvar: ' + error.message, 'error')
       } finally {
-        this.testing = false
+        this.saving = false
+      }
+    },
+
+    async testBotConnection() {
+      this.testingBot = true
+      this.error = ''
+      try {
+        console.log('🔍 Iniciando teste de conexão...')
+        
+        // Primeiro salva as configurações atuais se houver mudanças
+        if (this.hasChanges) {
+          await this.saveConfig()
+          // Aguarda um pouco para garantir que salvou no Firebase
+          await new Promise(resolve => setTimeout(resolve, 500))
+        }
+        
+        // Agora testa a conexão
+        const result = await telegramService.testConnection(this.telegramConfig)
+        
+        if (result.success) {
+          this.lastTest = new Date()
+          this.addMessage('Teste de Conexão', `Conexão estabelecida com sucesso! Bot: @${result.botInfo.username}`, 'success')
+          
+          // Atualiza a configuração local com o nome do bot
+          this.telegramConfig.botName = result.botInfo.username
+          this.originalConfig = { ...this.telegramConfig }
+        }
+        
+      } catch (error) {
+        console.error('❌ Erro ao testar conexão:', error)
+        this.error = 'Erro ao testar conexão: ' + error.message
+        this.addMessage('Teste de Conexão', 'Falha na conexão: ' + error.message, 'error')
+      } finally {
+        this.testingBot = false
+      }
+    },
+
+    async sendTestMessage() {
+      this.testingMessage = true
+      this.error = ''
+      try {
+        console.log('📤 Iniciando envio de mensagem de teste...')
+        
+        // Primeiro salva as configurações atuais se houver mudanças
+        if (this.hasChanges) {
+          await this.saveConfig()
+          // Aguarda um pouco para garantir que salvou no Firebase
+          await new Promise(resolve => setTimeout(resolve, 500))
+        }
+        
+        // Agora envia a mensagem
+        const success = await telegramService.sendTestMessage(this.telegramConfig)
+        
+        if (success) {
+          this.addMessage('Mensagem de Teste', 'Mensagem de teste enviada com sucesso para o Telegram', 'success')
+        }
+        
+      } catch (error) {
+        console.error('❌ Erro ao enviar mensagem:', error)
+        this.addMessage('Mensagem de Teste', 'Erro ao enviar mensagem: ' + error.message, 'error')
+        this.error = 'Erro ao enviar mensagem: ' + error.message
+      } finally {
+        this.testingMessage = false
       }
     },
 
     resetConfig() {
-      if (confirm('Tem certeza que deseja limpar as configurações do Telegram?')) {
-        localStorage.removeItem('telegram_config')
-        this.config = { botToken: '', chatId: '', botName: '' }
-        this.currentConfig = null
-        this.success = 'Configurações do Telegram foram removidas.'
-        this.error = ''
+      if (confirm('Tem certeza que deseja restaurar as configurações padrão? Todas as configurações atuais serão perdidas.')) {
+        this.telegramConfig = {
+          botName: '',
+          botToken: '',
+          adminChatId: '',
+          enabled: false
+        }
       }
+    },
+
+    async addMessage(type, content, status) {
+      const message = {
+        id: Date.now().toString(),
+        type,
+        content,
+        status,
+        timestamp: new Date()
+      }
+      
+      this.messages.unshift(message)
+      
+      // Manter apenas as últimas 10 mensagens na memória
+      if (this.messages.length > 10) {
+        this.messages = this.messages.slice(0, 10)
+      }
+      
+      // Salvar no Firebase
+      try {
+        await telegramService.saveMessageHistory(message)
+      } catch (error) {
+        console.error('Erro ao salvar no Firebase, usando localStorage:', error)
+        this.saveMessageHistoryToLocalStorage()
+      }
+    },
+
+    saveMessageHistoryToLocalStorage() {
+      try {
+        localStorage.setItem('telegram_messages', JSON.stringify(this.messages.slice(0, 10)))
+      } catch (error) {
+        console.error('Erro ao salvar histórico no localStorage:', error)
+      }
+    },
+
+    async loadMessageHistory() {
+      try {
+        this.messages = await telegramService.getMessageHistory(10)
+      } catch (error) {
+        console.error('Erro ao carregar histórico:', error)
+        // Fallback para localStorage se Firebase falhar
+        this.loadMessageHistoryFromLocalStorage()
+      }
+    },
+
+    loadMessageHistoryFromLocalStorage() {
+      try {
+        const saved = localStorage.getItem('telegram_messages')
+        if (saved) {
+          this.messages = JSON.parse(saved)
+        }
+      } catch (error) {
+        console.error('Erro ao carregar histórico do localStorage:', error)
+      }
+    },
+
+    formatDate(date) {
+      if (!date) return 'Nunca'
+      const dateObj = date.toDate ? date.toDate() : new Date(date)
+      return dateObj.toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
     }
   }
 }
@@ -286,32 +412,33 @@ export default {
 
 <style scoped>
 .telegram-config {
-  max-width: 600px;
-  margin: 0 auto;
   padding: 20px;
+  max-width: 800px;
+  margin: 0 auto;
 }
 
-.config-header {
-  text-align: center;
-  margin-bottom: 30px;
-}
-
-.config-header h3 {
+.telegram-config h3 {
   color: #2c3e50;
-  margin-bottom: 10px;
+  margin-bottom: 25px;
+  text-align: center;
+  font-size: 1.5em;
 }
 
-.config-header p {
-  color: #7f8c8d;
-  font-size: 14px;
-}
-
-.config-form {
+.config-section {
   background: white;
   padding: 25px;
+  margin-bottom: 25px;
   border-radius: 12px;
   box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-  margin-bottom: 25px;
+  border: 1px solid #e0e0e0;
+}
+
+.config-section h4 {
+  color: #3498db;
+  margin-bottom: 20px;
+  font-size: 1.2em;
+  border-bottom: 2px solid #3498db;
+  padding-bottom: 8px;
 }
 
 .form-group {
@@ -325,192 +452,256 @@ export default {
   color: #2c3e50;
 }
 
-.form-group input {
+.form-input {
   width: 100%;
-  padding: 12px;
+  padding: 12px 16px;
   border: 2px solid #e0e0e0;
   border-radius: 8px;
-  font-size: 14px;
-  transition: border-color 0.3s;
+  font-size: 16px;
+  transition: all 0.3s;
+  background: #fafafa;
 }
 
-.form-group input:focus {
+.form-input:focus {
   outline: none;
   border-color: #3498db;
+  background: white;
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+.form-input:disabled {
+  background: #ecf0f1;
+  color: #7f8c8d;
+  cursor: not-allowed;
 }
 
 .help-text {
   display: block;
-  margin-top: 5px;
+  margin-top: 6px;
   color: #7f8c8d;
   font-size: 12px;
+  font-style: italic;
 }
 
-.form-actions {
+.checkbox-label {
   display: flex;
-  gap: 10px;
+  align-items: center;
+  cursor: pointer;
+}
+
+.checkbox-input {
+  margin-right: 10px;
+  transform: scale(1.2);
+}
+
+.checkbox-text {
+  font-weight: normal;
+  color: #2c3e50;
+}
+
+.status-info {
+  background: #f8f9fa;
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.status-info p {
+  margin: 8px 0;
+  color: #2c3e50;
+}
+
+.status-on {
+  color: #27ae60;
+  font-weight: bold;
+}
+
+.status-warning {
+  color: #f39c12;
+  font-weight: bold;
+}
+
+.status-off {
+  color: #e74c3c;
+  font-weight: bold;
+}
+
+.test-buttons {
+  display: flex;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
-.btn {
+.test-btn {
+  flex: 1;
   padding: 12px 20px;
+  background: linear-gradient(135deg, #3498db, #2980b9);
+  color: white;
   border: none;
   border-radius: 8px;
   cursor: pointer;
   font-weight: 600;
   transition: all 0.3s;
-  flex: 1;
-  min-width: 120px;
+  min-width: 180px;
 }
 
-.btn-primary {
-  background: #3498db;
-  color: white;
+.test-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #2980b9, #2471a3);
+  transform: translateY(-2px);
 }
 
-.btn-primary:hover:not(:disabled) {
-  background: #2980b9;
-}
-
-.btn-secondary {
-  background: #2ecc71;
-  color: white;
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background: #27ae60;
-}
-
-.btn-danger {
-  background: #e74c3c;
-  color: white;
-}
-
-.btn-danger:hover {
-  background: #c0392b;
-}
-
-.btn:disabled {
+.test-btn:disabled {
   background: #bdc3c7;
   cursor: not-allowed;
+  transform: none;
 }
 
-.config-status {
-  margin-bottom: 25px;
-}
-
-.status-card {
-  background: white;
-  padding: 20px;
-  border-radius: 12px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-  border-left: 4px solid #2ecc71;
-}
-
-.status-card h4 {
-  margin: 0 0 10px 0;
-  color: #2c3e50;
-}
-
-.config-info {
-  margin-top: 15px;
-  padding-top: 15px;
-  border-top: 1px solid #ecf0f1;
-}
-
-.config-info p {
-  margin: 5px 0;
-  color: #7f8c8d;
-  font-size: 14px;
-}
-
-.setup-guide {
-  background: white;
-  padding: 25px;
-  border-radius: 12px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-}
-
-.setup-guide h4 {
-  color: #2c3e50;
-  margin-bottom: 20px;
+.no-messages {
   text-align: center;
+  padding: 30px;
+  color: #7f8c8d;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 2px dashed #bdc3c7;
 }
 
-.guide-steps {
+.messages-list {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.message-item {
+  background: #f8f9fa;
+  padding: 15px;
+  margin-bottom: 12px;
+  border-radius: 8px;
+  border-left: 4px solid #3498db;
+}
+
+.message-header {
   display: flex;
-  flex-direction: column;
-  gap: 20px;
+  justify-content: space-between;
+  margin-bottom: 8px;
 }
 
-.step {
+.message-type {
+  font-weight: bold;
+  color: #2c3e50;
+}
+
+.message-date {
+  color: #7f8c8d;
+  font-size: 0.9em;
+}
+
+.message-content {
+  color: #34495e;
+  margin-bottom: 8px;
+  word-break: break-word;
+}
+
+.message-status.success {
+  color: #27ae60;
+  font-weight: bold;
+}
+
+.message-status.error {
+  color: #e74c3c;
+  font-weight: bold;
+}
+
+.action-buttons {
   display: flex;
   gap: 15px;
-  align-items: flex-start;
+  margin-top: 30px;
+  padding-top: 25px;
+  border-top: 2px solid #ecf0f1;
 }
 
-.step-number {
-  background: #3498db;
+.save-btn {
+  flex: 2;
+  padding: 16px 24px;
+  background: linear-gradient(135deg, #27ae60, #219a52);
   color: white;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  border: none;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  position: relative;
+}
+
+.save-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #219a52, #1e8449);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(39, 174, 96, 0.3);
+}
+
+.save-btn:disabled {
+  background: #bdc3c7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.unsaved-indicator {
+  color: #f39c12;
   font-weight: bold;
-  flex-shrink: 0;
+  margin-left: 5px;
 }
 
-.step-content h5 {
-  margin: 0 0 8px 0;
-  color: #2c3e50;
+.reset-btn {
+  flex: 1;
+  padding: 16px 24px;
+  background: #95a5a6;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
 }
 
-.step-content p {
-  margin: 4px 0;
-  color: #7f8c8d;
-  font-size: 14px;
-}
-
-.step-content code {
-  background: #f8f9fa;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-family: monospace;
-  color: #e74c3c;
+.reset-btn:hover {
+  background: #7f8c8d;
+  transform: translateY(-2px);
 }
 
 .error-message {
   background: #ffeaa7;
   color: #d35400;
-  padding: 12px;
-  border-radius: 8px;
-  margin-bottom: 20px;
-  border: 1px solid #fdcb6e;
+  padding: 16px;
+  border-radius: 10px;
+  margin-bottom: 25px;
+  border: 2px solid #fdcb6e;
+  font-weight: 500;
+  text-align: center;
 }
 
-.success-message {
-  background: #d4edda;
-  color: #155724;
-  padding: 12px;
-  border-radius: 8px;
-  margin-bottom: 20px;
-  border: 1px solid #c3e6cb;
+.loading {
+  text-align: center;
+  padding: 40px;
+  color: #7f8c8d;
+  font-size: 1.1em;
 }
 
 @media (max-width: 768px) {
-  .form-actions {
+  .telegram-config {
+    padding: 15px;
+  }
+  
+  .test-buttons {
     flex-direction: column;
   }
   
-  .step {
+  .action-buttons {
     flex-direction: column;
-    text-align: center;
   }
   
-  .step-number {
-    align-self: center;
+  .message-header {
+    flex-direction: column;
+    gap: 5px;
   }
 }
 </style>
