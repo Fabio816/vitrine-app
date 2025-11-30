@@ -1,0 +1,13 @@
+echo "node_modules/
+dist/
+.env
+.env.local
+.DS_Store
+*.log
+.firebase/
+.firebaserc" > .gitignore
+
+node_modules
+dist
+dist-ssr
+*.local

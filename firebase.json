@@ -1,0 +1,18 @@
+import firebase from 'firebase/compat/app'
+import 'firebase/compat/auth'
+import 'firebase/compat/firestore'
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBBs-xUCXqlKsGG1Sj-yrvjaLF4M3JWrS0",
+  authDomain: "vitrine-app-873d7.firebaseapp.com",
+  projectId: "vitrine-app-873d7",
+  storageBucket: "vitrine-app-873d7.firebasestorage.app",
+  messagingSenderId: "399273030644",
+  appId: "1:399273030644:web:2593fa0d5e031557333fa1"
+};
+
+// Initialize Firebase
+firebase.initializeApp(firebaseConfig)
+
+export const db = firebase.firestore()
+export const auth = firebase.auth()
