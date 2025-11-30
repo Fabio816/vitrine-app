@@ -7,8 +7,8 @@
     </div>
     
     <div class="add-product-form">
-      <h3>Adicionar Produto</h3>
-      <form @submit.prevent="addProduct">
+      <h3>{{ editingProduct ? 'Editar Produto' : 'Adicionar Produto' }}</h3>
+      <form @submit.prevent="editingProduct ? updateProduct() : addProduct()">
         <!-- Campo de Nome -->
         <div class="form-group">
           <input 
@@ -19,7 +19,7 @@
           >
         </div>
 
-        <!-- Campos Numéricos com Placeholder Correto -->
+        <!-- Campos Numéricos -->
         <div class="form-group">
           <input 
             v-model.number="newProduct.quantity" 
@@ -51,62 +51,91 @@
           >
         </div>
 
-        <!-- Upload de Imagem -->
+        <!-- URL da Imagem -->
         <div class="form-group">
-          <label class="upload-label">
-            📸 Foto do Produto
-            <input 
-              type="file" 
-              accept="image/*" 
-              capture="camera" 
-              @change="handleImageUpload"
-              class="file-input"
-            >
-            <span class="upload-button">Tirar Foto ou Escolher da Galeria</span>
-          </label>
+          <input 
+            v-model="newProduct.imageUrl" 
+            type="url" 
+            placeholder="🔗 Cole aqui a URL da imagem"
+            class="url-input"
+          >
+          <small class="url-help">
+            Dica: Use imagens do Unsplash, Pexels ou Google Images
+          </small>
           
           <!-- Preview da Imagem -->
-          <div v-if="imagePreview" class="image-preview">
-            <img :src="imagePreview" alt="Preview do produto">
+          <div v-if="newProduct.imageUrl" class="image-preview">
+            <img :src="newProduct.imageUrl" alt="Preview do produto" @error="handleImageError">
             <button type="button" @click="removeImage" class="remove-image">❌ Remover</button>
           </div>
         </div>
 
-        <button type="submit" :disabled="loading" class="submit-btn">
-          {{ loading ? 'Adicionando...' : 'Adicionar Produto' }}
-        </button>
+        <div class="form-buttons">
+          <button 
+            type="submit" 
+            :disabled="loading" 
+            class="submit-btn primary"
+          >
+            {{ loading ? 'Salvando...' : (editingProduct ? 'Atualizar Produto' : 'Adicionar Produto') }}
+          </button>
+          
+          <button 
+            v-if="editingProduct" 
+            type="button" 
+            @click="cancelEdit" 
+            class="submit-btn secondary"
+          >
+            Cancelar Edição
+          </button>
+        </div>
       </form>
     </div>
 
     <div class="products-list">
-      <h3>Produtos Cadastrados</h3>
+      <h3>Produtos Cadastrados ({{ products.length }})</h3>
       <div v-if="loadingProducts" class="loading">Carregando produtos...</div>
       <div v-else>
         <div v-for="product in products" :key="product.id" class="product-item">
           <!-- Imagem do Produto -->
-          <div v-if="product.imageUrl" class="product-image">
-            <img :src="product.imageUrl" :alt="product.name">
-          </div>
-          <div v-else class="product-image placeholder">
-            📷 Sem imagem
+          <div class="product-image">
+            <img 
+              v-if="product.imageUrl" 
+              :src="product.imageUrl" 
+              :alt="product.name"
+              @error="handleImageError"
+            >
+            <div v-else class="image-placeholder">📷</div>
           </div>
           
           <div class="product-info">
             <h4>{{ product.name }}</h4>
-            <p><strong>Quantidade:</strong> {{ product.quantity }}</p>
-            <p><strong>Estoque:</strong> {{ product.stock }}</p>
-            <p><strong>Preço:</strong> R$ {{ formatPrice(product.price) }}</p>
+            <div class="product-details">
+              <p><strong>Quantidade:</strong> {{ product.quantity }}</p>
+              <p><strong>Estoque:</strong> 
+                <span :class="{ 'low-stock': product.stock <= 2 }">
+                  {{ product.stock }}
+                </span>
+              </p>
+              <p><strong>Preço:</strong> R$ {{ formatPrice(product.price) }}</p>
+              <p class="product-date">
+                <small>Adicionado em: {{ formatDate(product.createdAt) }}</small>
+              </p>
+            </div>
           </div>
           
-          <button @click="editProduct(product)" class="edit-btn">Editar</button>
+          <div class="product-actions">
+            <button @click="editProduct(product)" class="edit-btn">✏️ Editar</button>
+            <button @click="deleteProduct(product)" class="delete-btn">🗑️ Excluir</button>
+          </div>
         </div>
         <div v-if="products.length === 0" class="no-products">
-          Nenhum produto cadastrado.
+          <p>Nenhum produto cadastrado.</p>
+          <p>Adicione seu primeiro produto usando o formulário acima.</p>
         </div>
       </div>
     </div>
 
-    <button @click="logout" class="logout-btn">Sair</button>
+    <button @click="logout" class="logout-btn">🚪 Sair</button>
   </div>
 </template>
 
@@ -120,12 +149,12 @@ export default {
       products: [],
       newProduct: {
         name: '',
-        quantity: null, // Mudado para null para placeholder funcionar
+        quantity: null,
         stock: null,
         price: null,
-        imageFile: null
+        imageUrl: ''
       },
-      imagePreview: null,
+      editingProduct: null,
       loading: false,
       loadingProducts: false,
       error: ''
@@ -155,15 +184,7 @@ export default {
         await productsService.addProduct(this.newProduct)
         
         // Reset do formulário
-        this.newProduct = { 
-          name: '', 
-          quantity: null, 
-          stock: null, 
-          price: null,
-          imageFile: null 
-        }
-        this.imagePreview = null
-        
+        this.resetForm()
         await this.loadProducts()
         alert('✅ Produto adicionado com sucesso!')
       } catch (error) {
@@ -174,48 +195,98 @@ export default {
       }
     },
 
-    handleImageUpload(event) {
-      const file = event.target.files[0]
-      if (file) {
-        // Verifica se é uma imagem
-        if (!file.type.startsWith('image/')) {
-          alert('Por favor, selecione apenas imagens!')
-          return
-        }
-
-        // Verifica o tamanho do arquivo (máximo 5MB)
-        if (file.size > 5 * 1024 * 1024) {
-          alert('A imagem deve ter no máximo 5MB!')
-          return
-        }
-
-        this.newProduct.imageFile = file
+    async updateProduct() {
+      this.loading = true
+      this.error = ''
+      try {
+        await productsService.updateProduct(this.editingProduct.id, this.newProduct)
         
-        // Cria preview da imagem
-        const reader = new FileReader()
-        reader.onload = (e) => {
-          this.imagePreview = e.target.result
-        }
-        reader.readAsDataURL(file)
+        // Reset do formulário
+        this.cancelEdit()
+        await this.loadProducts()
+        alert('✅ Produto atualizado com sucesso!')
+      } catch (error) {
+        console.error('Erro ao atualizar produto:', error)
+        this.error = `Erro ao atualizar produto: ${error.message}`
+      } finally {
+        this.loading = false
       }
     },
 
+    async deleteProduct(product) {
+      if (!confirm(`Tem certeza que deseja excluir o produto "${product.name}"?`)) {
+        return
+      }
+
+      try {
+        await productsService.deleteProduct(product.id)
+        await this.loadProducts()
+        alert('✅ Produto excluído com sucesso!')
+      } catch (error) {
+        console.error('Erro ao excluir produto:', error)
+        alert(`Erro ao excluir produto: ${error.message}`)
+      }
+    },
+
+    editProduct(product) {
+      this.editingProduct = product
+      this.newProduct = {
+        name: product.name,
+        quantity: product.quantity,
+        stock: product.stock,
+        price: product.price,
+        imageUrl: product.imageUrl || ''
+      }
+      
+      // Scroll para o formulário
+      this.$nextTick(() => {
+        document.querySelector('.add-product-form').scrollIntoView({ 
+          behavior: 'smooth' 
+        })
+      })
+    },
+
+    cancelEdit() {
+      this.editingProduct = null
+      this.resetForm()
+    },
+
+    resetForm() {
+      this.newProduct = { 
+        name: '', 
+        quantity: null, 
+        stock: null, 
+        price: null,
+        imageUrl: '' 
+      }
+      this.error = ''
+    },
+
     removeImage() {
-      this.newProduct.imageFile = null
-      this.imagePreview = null
-      // Reseta o input file
-      const fileInput = document.querySelector('.file-input')
-      if (fileInput) fileInput.value = ''
+      this.newProduct.imageUrl = ''
+    },
+
+    handleImageError(event) {
+      // Se a imagem não carregar, remove a URL
+      this.newProduct.imageUrl = ''
+      alert('❌ A URL da imagem é inválida. Por favor, use outra URL.')
     },
 
     formatPrice(price) {
       return parseFloat(price).toFixed(2)
     },
 
-    editProduct(product) {
-      // Implementar edição
-      console.log('Editar produto:', product)
-      alert(`Editar produto: ${product.name}`)
+    formatDate(date) {
+      if (!date) return 'Data não disponível'
+      
+      const dateObj = date.toDate ? date.toDate() : new Date(date)
+      return dateObj.toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
     },
 
     logout() {
@@ -228,151 +299,215 @@ export default {
 <style scoped>
 .admin-panel {
   padding: 20px;
-  max-width: 600px;
+  max-width: 800px;
   margin: 0 auto;
+  background: #f8f9fa;
+  min-height: 100vh;
 }
 
 .add-product-form {
   margin-bottom: 30px;
-  padding: 20px;
-  border: 1px solid #ddd;
-  border-radius: 10px;
-  background: #f9f9f9;
+  padding: 30px;
+  border: 1px solid #e0e0e0;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+}
+
+.add-product-form h3 {
+  margin-bottom: 25px;
+  color: #2c3e50;
+  text-align: center;
+  font-size: 1.5em;
+  font-weight: 600;
+  border-bottom: 2px solid #3498db;
+  padding-bottom: 10px;
 }
 
 .form-group {
-  margin-bottom: 15px;
+  margin-bottom: 25px;
 }
 
 .add-product-form input {
   display: block;
   width: 100%;
-  margin-bottom: 10px;
-  padding: 12px;
-  border: 1px solid #ddd;
-  border-radius: 8px;
+  padding: 16px;
+  border: 2px solid #e0e0e0;
+  border-radius: 10px;
   font-size: 16px;
-  background: white;
-}
-
-/* Estilo para inputs numéricos com placeholder visível */
-.add-product-form input[type="number"]:placeholder-shown {
-  color: #999;
+  background: #fafafa;
+  transition: all 0.3s ease;
+  font-family: inherit;
 }
 
 .add-product-form input:focus {
   outline: none;
-  border-color: #007bff;
-  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+  border-color: #3498db;
+  background: white;
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+  transform: translateY(-1px);
 }
 
-/* Upload de Imagem */
-.upload-label {
+.add-product-form input::placeholder {
+  color: #95a5a6;
+  font-weight: 300;
+}
+
+.url-input {
+  background: #f8f9fa !important;
+  border-color: #bdc3c7 !important;
+  font-size: 14px !important;
+}
+
+.url-help {
   display: block;
-  cursor: pointer;
-  margin-bottom: 10px;
-}
-
-.file-input {
-  display: none;
-}
-
-.upload-button {
-  display: block;
-  padding: 12px;
-  background: #28a745;
-  color: white;
-  text-align: center;
-  border-radius: 8px;
-  border: none;
-  cursor: pointer;
-  transition: background 0.3s;
-}
-
-.upload-button:hover {
-  background: #218838;
+  margin-top: 8px;
+  color: #7f8c8d;
+  font-size: 12px;
+  font-style: italic;
 }
 
 .image-preview {
-  margin-top: 10px;
+  margin-top: 15px;
   text-align: center;
+  padding: 20px;
+  background: #ecf0f1;
+  border-radius: 12px;
+  border: 2px dashed #bdc3c7;
 }
 
 .image-preview img {
   max-width: 200px;
   max-height: 200px;
-  border-radius: 8px;
-  border: 2px solid #ddd;
+  border-radius: 10px;
+  border: 3px solid #3498db;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 }
 
 .remove-image {
-  margin-top: 10px;
-  padding: 5px 10px;
-  background: #dc3545;
-  color: white;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-}
-
-.submit-btn {
-  width: 100%;
-  padding: 15px;
-  background: #007bff;
+  margin-top: 12px;
+  padding: 10px 20px;
+  background: #e74c3c;
   color: white;
   border: none;
   border-radius: 8px;
-  font-size: 16px;
   cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
   transition: background 0.3s;
 }
 
-.submit-btn:disabled {
-  background: #6c757d;
-  cursor: not-allowed;
+.remove-image:hover {
+  background: #c0392b;
 }
 
-.submit-btn:hover:not(:disabled) {
-  background: #0056b3;
+.form-buttons {
+  display: flex;
+  gap: 15px;
+  margin-top: 25px;
+}
+
+.submit-btn {
+  flex: 1;
+  padding: 16px 24px;
+  border: none;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-align: center;
+}
+
+.submit-btn.primary {
+  background: linear-gradient(135deg, #3498db, #2980b9);
+  color: white;
+}
+
+.submit-btn.primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #2980b9, #2471a3);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(52, 152, 219, 0.4);
+}
+
+.submit-btn.secondary {
+  background: #95a5a6;
+  color: white;
+}
+
+.submit-btn.secondary:hover {
+  background: #7f8c8d;
+  transform: translateY(-2px);
+}
+
+.submit-btn:disabled {
+  background: #bdc3c7 !important;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
 }
 
 /* Lista de Produtos */
 .products-list {
-  margin-top: 30px;
+  margin-top: 40px;
+}
+
+.products-list h3 {
+  color: #2c3e50;
+  margin-bottom: 25px;
+  font-size: 1.4em;
+  font-weight: 600;
+  text-align: center;
 }
 
 .product-item {
-  border: 1px solid #ddd;
-  padding: 15px;
-  margin-bottom: 15px;
-  border-radius: 10px;
+  border: 1px solid #e0e0e0;
+  padding: 25px;
+  margin-bottom: 20px;
+  border-radius: 16px;
   display: flex;
   align-items: center;
-  gap: 15px;
+  gap: 20px;
   background: white;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.product-item:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+  border-color: #3498db;
 }
 
 .product-image {
-  width: 80px;
-  height: 80px;
+  width: 100px;
+  height: 100px;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #ecf0f1;
 }
 
 .product-image img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: 8px;
 }
 
-.product-image.placeholder {
+.image-placeholder {
+  width: 100%;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f8f9fa;
-  border: 2px dashed #dee2e6;
-  border-radius: 8px;
-  font-size: 24px;
+  background: #bdc3c7;
+  color: white;
+  font-size: 2em;
+  border-radius: 12px;
 }
 
 .product-info {
@@ -380,58 +515,126 @@ export default {
 }
 
 .product-info h4 {
-  margin: 0 0 10px 0;
-  color: #333;
+  margin: 0 0 12px 0;
+  color: #2c3e50;
+  font-size: 1.3em;
+  font-weight: 600;
 }
 
-.product-info p {
-  margin: 5px 0;
-  color: #666;
+.product-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.product-details p {
+  margin: 4px 0;
+  color: #34495e;
+  font-size: 14px;
+}
+
+.low-stock {
+  color: #e74c3c !important;
+  font-weight: bold;
+  background: #ffeaa7;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.product-date {
+  grid-column: 1 / -1;
+  margin-top: 8px !important;
+  color: #7f8c8d !important;
+  font-style: italic;
+}
+
+.product-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-self: stretch;
+}
+
+.edit-btn, .delete-btn {
+  padding: 10px 16px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  min-width: 100px;
 }
 
 .edit-btn {
-  padding: 8px 15px;
-  background: #ffc107;
-  color: #212529;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  align-self: flex-start;
+  background: #f39c12;
+  color: white;
+}
+
+.edit-btn:hover {
+  background: #e67e22;
+  transform: translateY(-1px);
+}
+
+.delete-btn {
+  background: #e74c3c;
+  color: white;
+}
+
+.delete-btn:hover {
+  background: #c0392b;
+  transform: translateY(-1px);
 }
 
 .logout-btn {
-  background: #dc3545;
+  background: linear-gradient(135deg, #e74c3c, #c0392b);
   color: white;
   border: none;
-  padding: 12px 24px;
-  border-radius: 8px;
+  padding: 16px 32px;
+  border-radius: 10px;
   cursor: pointer;
-  margin-top: 20px;
+  margin-top: 30px;
   width: 100%;
+  font-size: 16px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.logout-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(231, 76, 60, 0.4);
 }
 
 .error-message {
-  background: #f8d7da;
-  color: #721c24;
-  padding: 12px;
-  border-radius: 8px;
-  margin-bottom: 20px;
-  border: 1px solid #f5c6cb;
+  background: #ffeaa7;
+  color: #d35400;
+  padding: 16px;
+  border-radius: 10px;
+  margin-bottom: 25px;
+  border: 2px solid #fdcb6e;
+  font-weight: 500;
+  text-align: center;
 }
 
 .loading {
   text-align: center;
-  padding: 20px;
-  color: #666;
+  padding: 40px;
+  color: #7f8c8d;
+  font-size: 1.1em;
 }
 
 .no-products {
   text-align: center;
-  padding: 30px;
-  color: #666;
-  font-style: italic;
-  background: #f8f9fa;
-  border-radius: 8px;
+  padding: 50px 30px;
+  color: #7f8c8d;
+  background: white;
+  border-radius: 16px;
+  border: 2px dashed #bdc3c7;
+}
+
+.no-products p {
+  margin: 10px 0;
+  font-size: 1.1em;
 }
 
 /* Responsivo */
@@ -440,13 +643,36 @@ export default {
     padding: 15px;
   }
   
+  .add-product-form {
+    padding: 20px;
+  }
+  
   .product-item {
     flex-direction: column;
     text-align: center;
+    padding: 20px;
   }
   
-  .edit-btn {
-    align-self: center;
+  .product-details {
+    grid-template-columns: 1fr;
+    text-align: left;
+  }
+  
+  .product-actions {
+    flex-direction: row;
+    justify-content: center;
+    width: 100%;
+    margin-top: 15px;
+  }
+  
+  .form-buttons {
+    flex-direction: column;
+  }
+  
+  .product-image {
+    width: 120px;
+    height: 120px;
+    margin: 0 auto;
   }
 }
 </style>

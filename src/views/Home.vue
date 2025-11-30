@@ -1,7 +1,7 @@
 <template>
   <div class="home">
     <div class="hero">
-      <h1>Bem-vindo à Nossa Vitrine</h1>
+      <h1>Bem-vindo à Liandra App</h1>
       <p>Produtos com preços especiais para você!</p>
       <router-link to="/products" class="cta-button">Ver Produtos</router-link>
     </div>
@@ -33,7 +33,7 @@ export default {
 .hero {
   text-align: center;
   padding: 60px 20px;
-  background: linear-gradient(135deg, #007bff, #0056b3);
+  background: linear-gradient(135deg, #ff0077ff, #0056b3);
   color: white;
   border-radius: 10px;
   margin-bottom: 40px;

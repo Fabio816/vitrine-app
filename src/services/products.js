@@ -56,26 +56,49 @@ export const productsService = {
     }
   },
 
+  async updateProduct(id, updates) {
+    try {
+      checkFirebase()
+      console.log('✏️ Atualizando produto:', id, updates)
+    
+      await db.collection('products').doc(id).update(updates)
+      console.log('✅ Produto atualizado com sucesso')
+    
+    } catch (error) {
+      console.error('❌ Erro ao atualizar produto:', error)
+      throw new Error(`Falha ao atualizar produto: ${error.message}`)
+    }
+  },
+
+  async deleteProduct(id) {
+    try {
+      checkFirebase()
+      console.log('🗑️ Excluindo produto:', id)
+      
+      await db.collection('products').doc(id).delete()
+      console.log('✅ Produto excluído com sucesso')
+      
+    } catch (error) {
+      console.error('❌ Erro ao excluir produto:', error)
+      throw new Error(`Falha ao excluir produto: ${error.message}`)
+    }
+  },
+
   async addProduct(product) {
     try {
       checkFirebase()
       console.log('➕ Adicionando produto:', product)
-      
-      // Faz upload da imagem se existir
-      let imageUrl = null
-      if (product.imageFile) {
-        imageUrl = await uploadImage(product.imageFile)
-      }
       
       const productData = {
         name: product.name,
         quantity: parseInt(product.quantity) || 0,
         stock: parseInt(product.stock) || 0,
         price: parseFloat(product.price) || 0,
-        imageUrl: imageUrl,
+        imageUrl: product.imageUrl || null, // Agora é URL
         createdAt: new Date()
       }
       
+      console.log('💾 Salvando produto no Firestore:', productData)
       const result = await db.collection('products').add(productData)
       
       console.log('✅ Produto adicionado com ID:', result.id)

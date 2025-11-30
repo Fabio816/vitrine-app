@@ -8,7 +8,6 @@
           v-model="username" 
           type="text" 
           required 
-          placeholder="admin"
         >
       </div>
       <div class="form-group">
@@ -17,7 +16,6 @@
           v-model="password" 
           type="password" 
           required 
-          placeholder="330330"
         >
       </div>
       <button type="submit" :disabled="loading">

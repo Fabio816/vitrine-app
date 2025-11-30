@@ -2,7 +2,7 @@
   <div id="app">
     <nav class="navbar">
       <div class="nav-brand">
-        <h1>Vitrine App</h1>
+        <h1>Liandra App</h1>
       </div>
       <div class="nav-links">
         <router-link to="/">Home</router-link>
@@ -36,7 +36,7 @@ body {
 }
 
 .navbar {
-  background: #007bff;
+  background: rgba(255, 0, 157, 1);
   color: white;
   padding: 1rem 2rem;
   display: flex;
