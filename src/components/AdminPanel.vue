@@ -3,12 +3,17 @@
     <h2>Painel Administrativo</h2>
     
     <!-- Status do Google Drive -->
-    <div v-if="driveInitialized" class="drive-status success">
-      ✅ Google Drive Conectado
-    </div>
-    <div v-else class="drive-status warning">
-      ⚠️ Google Drive não inicializado
-    </div>
+    <div v-if="driveInitialized" class="drive-status">
+      <div v-if="isGoogleDriveConnected" class="status-connected">
+        ✅ Google Drive Conectado
+      </div>
+      <div v-else class="status-disconnected">
+        ⚠️ Google Drive não conectado
+        <button @click="connectGoogleDrive" class="connect-btn">
+          🔗 Conectar
+        </button>
+      </div>
+      </div>
     
     <!-- Abas de Navegação -->
     <div class="admin-tabs">
@@ -317,7 +322,8 @@ export default {
       cameraActive: false,
       capturedPhoto: null,
       currentStream: null,
-      facingMode: 'environment'
+      facingMode: 'environment',
+      googleDriveService: googleDriveService
     }
   },
   async mounted() {
@@ -327,17 +333,60 @@ export default {
   beforeUnmount() {
     this.stopCamera()
   },
+
+  computed: {
+  isGoogleDriveConnected() {
+    return this.driveInitialized && this.googleDriveService.isSignedIn();
+  }
+},
   methods: {
-    async initializeGoogleDrive() {
-      try {
-        await googleDriveService.initialize()
-        this.driveInitialized = true
-        console.log('Google Drive inicializado com sucesso')
-      } catch (error) {
-        console.error('Erro ao inicializar Google Drive:', error)
-        this.error = 'Erro ao configurar Google Drive. Usando upload local.'
+    async connectGoogleDrive() {
+    try {
+      this.error = '';
+      console.log('🔗 Conectando ao Google Drive...');
+      
+      await googleDriveService.authenticate();
+      // O usuário será redirecionado para autenticação
+      // Após retornar, o initializeGoogleDrive será chamado novamente
+      
+    } catch (error) {
+      console.error('❌ Erro ao conectar Google Drive:', error);
+      this.error = 'Erro ao conectar Google Drive: ' + error.message;
+    }
+  },
+     async initializeGoogleDrive() {
+    try {
+      await googleDriveService.initialize();
+      this.driveInitialized = true;
+      
+      // Verificar se há upload pendente após autenticação
+      const pendingFile = googleDriveService.getPendingUpload();
+      if (pendingFile) {
+        console.log('📤 Retomando upload pendente...');
+        await this.processPendingUpload(pendingFile);
       }
-    },
+      
+    } catch (error) {
+      console.error('❌ Erro ao inicializar Google Drive:', error);
+    }
+  },
+
+  async processPendingUpload(file) {
+    this.uploading = true;
+    this.uploadProgress = 50; // Já estava no meio do processo
+    
+    try {
+      const imageUrl = await googleDriveService.uploadFile(file);
+      this.newProduct.imageUrl = imageUrl;
+      alert('✅ Upload concluído com sucesso após autenticação!');
+    } catch (error) {
+      console.error('❌ Erro no upload pendente:', error);
+      this.error = 'Erro ao fazer upload: ' + error.message;
+    } finally {
+      this.uploading = false;
+      this.uploadProgress = 0;
+    }
+  },
 
     handleImageError(event) {
     // Se a imagem não carregar, substitui por placeholder
@@ -500,30 +549,40 @@ export default {
     },
 
     // UPLOAD PARA GOOGLE DRIVE
-    async uploadToGoogleDrive(file) {
-      // Simular progresso
-      const progressInterval = setInterval(() => {
-        if (this.uploadProgress < 80) {
-          this.uploadProgress += 10
-        }
-      }, 300)
-      
-      try {
-        if (!this.driveInitialized) {
-          throw new Error('Google Drive não inicializado')
-        }
-        
-        const driveUrl = await googleDriveService.uploadFile(file, (progress) => {
-          this.uploadProgress = 80 + Math.floor(progress * 0.2)
-        })
-        
-        this.uploadProgress = 100
-        return driveUrl
-        
-      } finally {
-        clearInterval(progressInterval)
-      }
-    },
+   async uploadToGoogleDrive(file) {
+  this.uploading = true;
+  this.uploadProgress = 10;
+  
+  let uploadError = null; // ← Variável local para capturar o erro
+  
+  try {
+    if (!this.driveInitialized) {
+      await this.initializeGoogleDrive();
+    }
+
+    const driveUrl = await googleDriveService.uploadFile(file);
+    this.uploadProgress = 100;
+    return driveUrl;
+    
+  } catch (error) {
+    console.error('❌ Erro no upload:', error);
+    uploadError = error; // ← Captura o erro
+    
+    if (error.message.includes('redirecionando')) {
+      // O usuário será redirecionado para autenticação
+      this.uploading = false;
+      return; // Não mostrar erro, pois é um fluxo normal
+    }
+    
+    throw error;
+  } finally {
+    // Use a variável local uploadError em vez de error
+    if (!uploadError || !uploadError.message.includes('redirecionando')) {
+      this.uploading = false;
+      this.uploadProgress = 0;
+    }
+  }
+},
 
     // CONTROLE DA CÂMERA
     openCamera() {
@@ -652,6 +711,48 @@ export default {
 </script>
 
 <style scoped>
+.status-connected {
+  background: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.status-disconnected {
+  background: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffeaa7;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  font-weight: 600;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+
+.connect-btn {
+  padding: 8px 16px;
+  background: #3498db;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.3s;
+}
+
+.connect-btn:hover {
+  background: #2980b9;
+}
+
 .drive-status {
   padding: 12px 16px;
   border-radius: 8px;
