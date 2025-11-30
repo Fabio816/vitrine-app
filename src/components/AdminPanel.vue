@@ -2,136 +2,178 @@
   <div class="admin-panel">
     <h2>Painel Administrativo</h2>
     
-    <div v-if="error" class="error-message">
-      {{ error }}
-    </div>
-    
-    <div class="add-product-form">
-      <h3>{{ editingProduct ? 'Editar Produto' : 'Adicionar Produto' }}</h3>
-      <form @submit.prevent="editingProduct ? updateProduct() : addProduct()">
-        <!-- Campo de Nome -->
-        <div class="form-group">
-          <input 
-            v-model="newProduct.name" 
-            type="text" 
-            placeholder="Nome do produto" 
-            required
-          >
-        </div>
-
-        <!-- Campos Numéricos -->
-        <div class="form-group">
-          <input 
-            v-model.number="newProduct.quantity" 
-            type="number" 
-            placeholder="Quantidade total" 
-            required
-            min="0"
-          >
-        </div>
-
-        <div class="form-group">
-          <input 
-            v-model.number="newProduct.stock" 
-            type="number" 
-            placeholder="Estoque disponível" 
-            required
-            min="0"
-          >
-        </div>
-
-        <div class="form-group">
-          <input 
-            v-model.number="newProduct.price" 
-            type="number" 
-            step="0.01" 
-            placeholder="Preço (ex: 29.99)" 
-            required
-            min="0"
-          >
-        </div>
-
-        <!-- URL da Imagem -->
-        <div class="form-group">
-          <input 
-            v-model="newProduct.imageUrl" 
-            type="url" 
-            placeholder="🔗 Cole aqui a URL da imagem"
-            class="url-input"
-          >
-          <small class="url-help">
-            Dica: Use imagens do Unsplash, Pexels ou Google Images
-          </small>
-          
-          <!-- Preview da Imagem -->
-          <div v-if="newProduct.imageUrl" class="image-preview">
-            <img :src="newProduct.imageUrl" alt="Preview do produto" @error="handleImageError">
-            <button type="button" @click="removeImage" class="remove-image">❌ Remover</button>
-          </div>
-        </div>
-
-        <div class="form-buttons">
-          <button 
-            type="submit" 
-            :disabled="loading" 
-            class="submit-btn primary"
-          >
-            {{ loading ? 'Salvando...' : (editingProduct ? 'Atualizar Produto' : 'Adicionar Produto') }}
-          </button>
-          
-          <button 
-            v-if="editingProduct" 
-            type="button" 
-            @click="cancelEdit" 
-            class="submit-btn secondary"
-          >
-            Cancelar Edição
-          </button>
-        </div>
-      </form>
+    <!-- Abas de Navegação -->
+    <div class="admin-tabs">
+      <button 
+        @click="currentTab = 'products'" 
+        :class="{ active: currentTab === 'products' }"
+        class="tab-btn"
+      >
+        📦 Produtos
+      </button>
+      <button 
+        @click="currentTab = 'telegram'" 
+        :class="{ active: currentTab === 'telegram' }"
+        class="tab-btn"
+      >
+        🤖 Telegram
+      </button>
+      <button 
+        @click="currentTab = 'reservations'" 
+        :class="{ active: currentTab === 'reservations' }"
+        class="tab-btn"
+      >
+        📋 Reservas
+      </button>
     </div>
 
-    <div class="products-list">
-      <h3>Produtos Cadastrados ({{ products.length }})</h3>
-      <div v-if="loadingProducts" class="loading">Carregando produtos...</div>
-      <div v-else>
-        <div v-for="product in products" :key="product.id" class="product-item">
-          <!-- Imagem do Produto -->
-          <div class="product-image">
-            <img 
-              v-if="product.imageUrl" 
-              :src="product.imageUrl" 
-              :alt="product.name"
-              @error="handleImageError"
-            >
-            <div v-else class="image-placeholder">📷</div>
-          </div>
-          
-          <div class="product-info">
-            <h4>{{ product.name }}</h4>
-            <div class="product-details">
-              <p><strong>Quantidade:</strong> {{ product.quantity }}</p>
-              <p><strong>Estoque:</strong> 
-                <span :class="{ 'low-stock': product.stock <= 2 }">
-                  {{ product.stock }}
-                </span>
-              </p>
-              <p><strong>Preço:</strong> R$ {{ formatPrice(product.price) }}</p>
-              <p class="product-date">
-                <small>Adicionado em: {{ formatDate(product.createdAt) }}</small>
-              </p>
+    <!-- Conteúdo das Abas -->
+    <div class="tab-content">
+      
+      <!-- Aba Produtos -->
+      <div v-if="currentTab === 'products'" class="tab-pane">
+        <div v-if="error" class="error-message">
+          {{ error }}
+        </div>
+        
+        <div class="add-product-form">
+          <h3>{{ editingProduct ? 'Editar Produto' : 'Adicionar Produto' }}</h3>
+          <form @submit.prevent="editingProduct ? updateProduct() : addProduct()">
+            <!-- Campo de Nome -->
+            <div class="form-group">
+              <input 
+                v-model="newProduct.name" 
+                type="text" 
+                placeholder="Nome do produto" 
+                required
+              >
+            </div>
+
+            <!-- Campos Numéricos -->
+            <div class="form-group">
+              <input 
+                v-model.number="newProduct.quantity" 
+                type="number" 
+                placeholder="Quantidade total" 
+                required
+                min="0"
+              >
+            </div>
+
+            <div class="form-group">
+              <input 
+                v-model.number="newProduct.stock" 
+                type="number" 
+                placeholder="Estoque disponível" 
+                required
+                min="0"
+              >
+            </div>
+
+            <div class="form-group">
+              <input 
+                v-model.number="newProduct.price" 
+                type="number" 
+                step="0.01" 
+                placeholder="Preço (ex: 29.99)" 
+                required
+                min="0"
+              >
+            </div>
+
+            <!-- URL da Imagem -->
+            <div class="form-group">
+              <input 
+                v-model="newProduct.imageUrl" 
+                type="url" 
+                placeholder="🔗 Cole aqui a URL da imagem"
+                class="url-input"
+              >
+              <small class="url-help">
+                Dica: Use imagens do Unsplash, Pexels ou Google Images
+              </small>
+              
+              <!-- Preview da Imagem -->
+              <div v-if="newProduct.imageUrl" class="image-preview">
+                <img :src="newProduct.imageUrl" alt="Preview do produto" @error="handleImageError">
+                <button type="button" @click="removeImage" class="remove-image">❌ Remover</button>
+              </div>
+            </div>
+
+            <div class="form-buttons">
+              <button 
+                type="submit" 
+                :disabled="loading" 
+                class="submit-btn primary"
+              >
+                {{ loading ? 'Salvando...' : (editingProduct ? 'Atualizar Produto' : 'Adicionar Produto') }}
+              </button>
+              
+              <button 
+                v-if="editingProduct" 
+                type="button" 
+                @click="cancelEdit" 
+                class="submit-btn secondary"
+              >
+                Cancelar Edição
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <div class="products-list">
+          <h3>Produtos Cadastrados ({{ products.length }})</h3>
+          <div v-if="loadingProducts" class="loading">Carregando produtos...</div>
+          <div v-else>
+            <div v-for="product in products" :key="product.id" class="product-item">
+              <!-- Imagem do Produto -->
+              <div class="product-image">
+                <img 
+                  v-if="product.imageUrl" 
+                  :src="product.imageUrl" 
+                  :alt="product.name"
+                  @error="handleImageError"
+                >
+                <div v-else class="image-placeholder">📷</div>
+              </div>
+              
+              <div class="product-info">
+                <h4>{{ product.name }}</h4>
+                <div class="product-details">
+                  <p><strong>Quantidade:</strong> {{ product.quantity }}</p>
+                  <p><strong>Estoque:</strong> 
+                    <span :class="{ 'low-stock': product.stock <= 2 }">
+                      {{ product.stock }}
+                    </span>
+                  </p>
+                  <p><strong>Preço:</strong> R$ {{ formatPrice(product.price) }}</p>
+                  <p class="product-date">
+                    <small>Adicionado em: {{ formatDate(product.createdAt) }}</small>
+                  </p>
+                </div>
+              </div>
+              
+              <div class="product-actions">
+                <button @click="editProduct(product)" class="edit-btn">✏️ Editar</button>
+                <button @click="deleteProduct(product)" class="delete-btn">🗑️ Excluir</button>
+              </div>
+            </div>
+            <div v-if="products.length === 0" class="no-products">
+              <p>Nenhum produto cadastrado.</p>
+              <p>Adicione seu primeiro produto usando o formulário acima.</p>
             </div>
           </div>
-          
-          <div class="product-actions">
-            <button @click="editProduct(product)" class="edit-btn">✏️ Editar</button>
-            <button @click="deleteProduct(product)" class="delete-btn">🗑️ Excluir</button>
-          </div>
         </div>
-        <div v-if="products.length === 0" class="no-products">
-          <p>Nenhum produto cadastrado.</p>
-          <p>Adicione seu primeiro produto usando o formulário acima.</p>
-        </div>
+      </div>
+
+      <!-- Aba Telegram -->
+      <div v-if="currentTab === 'telegram'" class="tab-pane">
+        <TelegramConfig />
+      </div>
+
+      <!-- Aba Reservas -->
+      <div v-if="currentTab === 'reservations'" class="tab-pane">
+        <ReservationsList />
       </div>
     </div>
 
@@ -141,11 +183,18 @@
 
 <script>
 import { productsService } from '../services/products'
+import TelegramConfig from './TelegramConfig.vue'
+import ReservationsList from './ReservationsList.vue'
 
 export default {
   name: 'AdminPanel',
+  components: {
+    TelegramConfig,
+    ReservationsList
+  },
   data() {
     return {
+      currentTab: 'products',
       products: [],
       newProduct: {
         name: '',
@@ -299,12 +348,61 @@ export default {
 <style scoped>
 .admin-panel {
   padding: 20px;
-  max-width: 800px;
+  max-width: 1000px;
   margin: 0 auto;
   background: #f8f9fa;
   min-height: 100vh;
 }
 
+/* Abas de Navegação */
+.admin-tabs {
+  display: flex;
+  margin-bottom: 25px;
+  background: white;
+  border-radius: 12px;
+  padding: 5px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  gap: 5px;
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 15px 20px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  transition: all 0.3s;
+  color: #7f8c8d;
+}
+
+.tab-btn.active {
+  background: #3498db;
+  color: white;
+  box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3);
+}
+
+.tab-btn:hover:not(.active) {
+  background: #ecf0f1;
+  color: #2c3e50;
+}
+
+.tab-content {
+  margin-top: 20px;
+}
+
+.tab-pane {
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Mantenha todo o resto do CSS existente abaixo */
 .add-product-form {
   margin-bottom: 30px;
   padding: 30px;
@@ -641,6 +739,10 @@ export default {
 @media (max-width: 768px) {
   .admin-panel {
     padding: 15px;
+  }
+  
+  .admin-tabs {
+    flex-direction: column;
   }
   
   .add-product-form {
