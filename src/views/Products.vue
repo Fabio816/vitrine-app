@@ -648,7 +648,7 @@ ${itemsText}
 
 .product-image {
   width: 100%;
-  height: 200px;
+  height: 250px; /* Aumentei um pouco a altura */
   margin-bottom: 20px;
   display: flex;
   align-items: center;
@@ -656,12 +656,15 @@ ${itemsText}
   overflow: hidden;
   border-radius: 12px;
   background: #f8f9fa;
+  position: relative;
 }
 
 .product-image img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain; /* ✅ Mantém a imagem inteira */
   border-radius: 12px;
 }
 
